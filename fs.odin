@@ -114,7 +114,23 @@ get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts := "
     path = normalize_path(path);
     files: [dynamic]File_Info;
     
-    error := append_all_files(path, only_files, recursive, &files, exts);
+    
+    exts_arr: [dynamic]string;
+    
+    for true {
+        index := strings.index_any(exts, ".");
+    
+        if index == -1 do break;
+    
+        new_str := exts[:index];
+        append(&exts_arr, new_str);
+        exts = exts[index+1:];
+    }
+    
+    append(&exts_arr, exts);
+    defer delete(exts_arr);
+    
+    error := append_all_files(path, only_files, recursive, &files, &exts_arr);
     
     if error != Dir_Error.None {
         delete(files);
@@ -288,7 +304,7 @@ get_name_from_info :: proc(info: ^File_Info) -> string {
 }
 
 @private
-append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, files: ^[dynamic]File_Info, exts: string) -> Dir_Error {
+append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, files: ^[dynamic]File_Info, exts: ^[dynamic]string) -> Dir_Error {
     path = normalize_path(path);
     dir, error := open_dir(path);
     
@@ -305,7 +321,16 @@ append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, f
             ext      := get_ext(&info);
             
             valid_dir  := info.is_directory && filename[0] != '.';
-            valid_file := exts == "" || (exts != "" && strings.contains(exts, ext));
+            
+            contains_ext := false;
+            for e in exts^ {
+                if (e == ext) {
+                    contains_ext = true;
+                    break;
+                }
+            }
+            
+            valid_file := len(exts) == 0 || (ext != "" && contains_ext);
             
             if valid_dir || (!info.is_directory && valid_file) {
                 append(files, info);
