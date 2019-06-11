@@ -303,6 +303,52 @@ get_name_from_info :: proc(info: ^File_Info) -> string {
     return filename[:index];
 }
 
+getline :: proc(file: os.Handle, out: ^string, buffer_size: int = 32) -> bool {
+    buf := make([]u8, buffer_size);
+    defer if buf != nil do delete(buf);
+    
+    out^ = "";
+    
+    should_read := buf != nil;
+    for should_read {
+        bytes_read, error := os.read(file, buf);
+        str := string(buf);
+        
+        // @TODO: error reporting
+        if error != os.ERROR_NONE || bytes_read != buffer_size {
+            out^ = strings.concatenate({ out^, str });
+            return false;
+        }
+        
+        index := strings.index_any(str, "\r\n");
+        
+        if index == -1 {
+            out^ = strings.concatenate({ out^, str });
+        } else {
+            out^ = strings.concatenate({ out^, str[:index + 1] });
+            
+            offset: i64 = i64(index) - i64(buffer_size) + 1;
+            os.seek(file, offset, 1 /* win32.FILE_CURRENT */);
+            return true;
+        }
+    }
+
+    return false;
+}
+    
+// Simple helper function
+normalize_path :: proc(path: string) -> string {
+    // Normalize slashes
+    path, _ = strings.replace_all(path, "\\", "/");
+    
+    // Add last slash
+    if !strings.has_suffix(path, "/") {
+        path = strings.concatenate({ path, "/" });
+    }
+    
+    return path;
+}
+
 @private
 append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, files: ^[dynamic]File_Info, exts: ^[dynamic]string) -> Dir_Error {
     path = normalize_path(path);
@@ -323,14 +369,16 @@ append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, f
             valid_dir  := info.is_directory && filename[0] != '.';
             
             contains_ext := false;
-            for e in exts^ {
-                if (e == ext) {
-                    contains_ext = true;
-                    break;
+            if len(ext) > 0 {
+                for e in exts^ {
+                    if (e == ext[1:]) {
+                        contains_ext = true;
+                        break;
+                    }
                 }
             }
             
-            valid_file := len(exts) == 0 || (ext != "" && contains_ext);
+            valid_file := len(exts) == 0 || (len(ext) > 0 && contains_ext);
             
             if valid_dir || (!info.is_directory && valid_file) {
                 append(files, info);
@@ -345,20 +393,6 @@ append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, f
     }
     
     return Dir_Error.None;
-}
-
-
-@private
-normalize_path :: proc(path: string) -> string {
-    // Normalize slashes
-    path, _ = strings.replace_all(path, "\\", "/");
-    
-    // Add last slash
-    if !strings.has_suffix(path, "/") {
-        path = strings.concatenate({ path, "/" });
-    }
-    
-    return path;
 }
 
 // Modified version of now() in core:sys/time_windows
