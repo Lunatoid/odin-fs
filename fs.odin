@@ -32,6 +32,12 @@
 //  get_ext(...)
 //    Returns the filename with only the extension (including the '.')
 //
+//  normalize_path(...)
+//    Takes a string to a path and normalizes the slashes to '/' and returns it.
+//
+//  getline(...)
+//    Gets the next line in a file, returns true while the file has not been fully read.
+//
 // Examples:
 //  Iterating over directories:
 //   
@@ -41,7 +47,7 @@
 //   assert(error == Dir_Error.None);
 //   
 //   file: File_Info;
-//   for get_next_file(dir, &file)
+//   for get_next_file(dir, &file) {
 //       fmt.println(get_name(&file));
 //   }
 //   
@@ -303,6 +309,10 @@ get_name_from_info :: proc(info: ^File_Info) -> string {
     return filename[:index];
 }
 
+// Gets the next line in a file
+//   file: a handle to a file
+//   out: a pointer to a string to put the line into
+//   buffer_size: the buffer of every read. A bigger buffer is faster but costs more memory.
 getline :: proc(file: os.Handle, out: ^string, buffer_size: int = 32) -> bool {
     buf := make([]u8, buffer_size);
     defer if buf != nil do delete(buf);
@@ -336,7 +346,7 @@ getline :: proc(file: os.Handle, out: ^string, buffer_size: int = 32) -> bool {
     return false;
 }
     
-// Simple helper function
+// Normalizes all the seperators in a path to '/'
 normalize_path :: proc(path: string) -> string {
     // Normalize slashes
     path, _ = strings.replace_all(path, "\\", "/");
