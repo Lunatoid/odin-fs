@@ -331,6 +331,8 @@ get_name_from_info :: proc(info: ^File_Info) -> string {
     return filename[:index];
 }
 
+import "core:fmt"
+
 // Gets the next line in a file
 //   file: a handle to a file
 //   out: a pointer to a string to put the line into
@@ -346,11 +348,8 @@ getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
         str := strings.string_from_ptr(auto_cast &buf[0], bytes_read);
         
         // @TODO: error reporting
-        if error != os.ERROR_NONE || bytes_read != buffer_size {
-            old_line := line;
-            line = strings.concatenate({ line, str });
-            delete(old_line);
-            return false, line;
+        if error != os.ERROR_NONE {
+            return false, ---;
         }
         
         // Find any line endings
@@ -361,15 +360,22 @@ getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
             line = strings.concatenate({ line, str });
             delete(old_line);
         } else {
+            eol := 1;
+            
+            // If we have \r\n we need to offset by 2 characters
+            if len(str) > index + 1 && (str[index] == '\r' && str[index+1] == '\n') do eol = 2;
+            
             old_line := line;
-            line = strings.concatenate({ line, str[:index + 1] });
+            line = strings.concatenate({ line, str[:index] });
             delete(old_line);
             
             // Seek back to line start
-            offset: i64 = i64(index) - i64(buffer_size) + 1;
+            offset: i64 = i64(index) - i64(bytes_read) + i64(eol);
             os.seek(file, offset, 1 /* win32.FILE_CURRENT */);
             return true, line;
         }
+        
+        if bytes_read == 0 do return false, line;
     }
 
     return false, line;
