@@ -32,6 +32,12 @@
 //  get_ext(...)
 //    Returns the filename with only the extension (including the '.')
 //
+//  normalize_path(...)
+//    Takes a string to a path and normalizes the slashes to '/' and returns it.
+//
+//  getline(...)
+//    Gets the next line in a file, returns true while the file has not been fully read.
+//
 // Examples:
 //  Iterating over directories:
 //   
@@ -41,7 +47,7 @@
 //   assert(error == Dir_Error.None);
 //   
 //   file: File_Info;
-//   for get_next_file(dir, &file)
+//   for get_next_file(dir, &file) {
 //       fmt.println(get_name(&file));
 //   }
 //   
@@ -112,10 +118,12 @@ Dir_Error :: enum {
 //   exts: extension filter, "" for all files, ".txt.md" will only include .txt and .md files
 get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts := "") -> ([dynamic]File_Info, Dir_Error) {
     path = normalize_path(path);
+    defer delete(path);
+    
     files: [dynamic]File_Info;
     
-    
     exts_arr: [dynamic]string;
+    defer delete(exts_arr);
     
     for true {
         index := strings.index_any(exts, ".");
@@ -128,7 +136,6 @@ get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts := "
     }
     
     append(&exts_arr, exts);
-    defer delete(exts_arr);
     
     error := append_all_files(path, only_files, recursive, &files, &exts_arr);
     
@@ -143,11 +150,15 @@ get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts := "
 // Opens a directory and gets the directory info
 open_dir :: proc(path: string) -> (dir: Dir_Info, error: Dir_Error) {
     path = normalize_path(path);
-    dir.path = path;
+    defer delete(path);
+    
+    dir.path = strings.clone(path);
     
     // Add wildcard
     if !strings.has_suffix(path, "*") {
+        old_path := path;
         path = strings.concatenate({ path, "*" });
+        delete(old_path);
     }
     
     find_data: win32.Find_Data_A;
@@ -170,11 +181,17 @@ open_dir :: proc(path: string) -> (dir: Dir_Info, error: Dir_Error) {
 }
 
 // Closes the handle
-close_dir :: proc(dir: ^Dir_Info) {
+close_dir :: proc(dir: ^Dir_Info, delete_info := true) {
     if dir.handle != win32.INVALID_HANDLE {
         assert(cast(bool) win32.find_close(dir.handle));
         dir.handle = win32.INVALID_HANDLE;
-    } 
+    }
+    
+    if delete_info do delete_dir_info(dir);
+}
+
+delete_dir_info :: proc(dir: ^Dir_Info) {
+    delete(dir.path);
 }
 
 // Opens the directory and gets all the info and then closes it again
@@ -184,7 +201,7 @@ get_dir_info :: proc(path: string) -> (Dir_Info, Dir_Error) {
     if error != Dir_Error.None do return ---, error;
     
     if error == Dir_Error.None {
-        close_dir(&dir);
+        close_dir(&dir, false);
     }
     
     return dir, Dir_Error.None;
@@ -210,6 +227,17 @@ get_next_file :: proc(dir: Dir_Info, info: ^File_Info) -> bool {
     info.is_directory = find_data.file_attributes & win32.FILE_ATTRIBUTE_DIRECTORY != 0;
     
     return more;
+}
+
+delete_file_info :: proc(info: ^File_Info) {
+    delete(info.path);
+}
+
+delete_file_info_array :: proc(files: ^[dynamic]File_Info) {
+    for i in 0..<len(files) {
+        delete_file_info(&(files^)[i]);
+    }
+    delete(files^);
 }
 
 // Returns the filename of a path
@@ -238,7 +266,7 @@ get_filename_from_string :: proc(path: string) -> string {
     index := strings.last_index_any(path, "/");
     
     if (index == -1) {
-        return path;
+        return path[:];
     }
     
     return path[index + 1:];
@@ -254,7 +282,7 @@ get_ext_from_string :: proc(path: string) -> string {
     index := strings.last_index_any(filename, ".");
     
     if (index == -1) {
-        return filename;
+        return filename[:];
     }
     
     return filename[index:len(filename)];
@@ -269,7 +297,7 @@ get_ext_from_info :: proc(info: ^File_Info) -> string {
     index := strings.last_index_any(filename, ".");
     
     if (index == -1) {
-        return filename;
+        return filename[:];
     }
     
     return filename[index:];
@@ -282,7 +310,7 @@ get_name_from_string :: proc(path: string) -> string {
     index := strings.last_index_any(filename, ".");
     
     if (index == -1) {
-        return filename;
+        return filename[:];
     }
     
     return filename[:index];
@@ -297,61 +325,79 @@ get_name_from_info :: proc(info: ^File_Info) -> string {
     index := strings.last_index_any(filename, ".");
     
     if (index == -1) {
-        return filename;
+        return filename[:];
     }
     
     return filename[:index];
 }
 
-getline :: proc(file: os.Handle, out: ^string, buffer_size: int = 32) -> bool {
+// Gets the next line in a file
+//   file: a handle to a file
+//   out: a pointer to a string to put the line into
+//   buffer_size: the buffer of every read. A bigger buffer is faster but costs more memory.
+getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
     buf := make([]u8, buffer_size);
     defer if buf != nil do delete(buf);
-    
-    out^ = "";
+    line: string;
     
     should_read := buf != nil;
     for should_read {
         bytes_read, error := os.read(file, buf);
-        str := string(buf);
+        str := strings.string_from_ptr(auto_cast &buf[0], bytes_read);
         
         // @TODO: error reporting
         if error != os.ERROR_NONE || bytes_read != buffer_size {
-            out^ = strings.concatenate({ out^, str });
-            return false;
+            old_line := line;
+            line = strings.concatenate({ line, str });
+            delete(old_line);
+            return false, line;
         }
         
+        // Find any line endings
         index := strings.index_any(str, "\r\n");
         
         if index == -1 {
-            out^ = strings.concatenate({ out^, str });
+            old_line := line;
+            line = strings.concatenate({ line, str });
+            delete(old_line);
         } else {
-            out^ = strings.concatenate({ out^, str[:index + 1] });
+            old_line := line;
+            line = strings.concatenate({ line, str[:index + 1] });
+            delete(old_line);
             
+            // Seek back to line start
             offset: i64 = i64(index) - i64(buffer_size) + 1;
             os.seek(file, offset, 1 /* win32.FILE_CURRENT */);
-            return true;
+            return true, line;
         }
     }
 
-    return false;
+    return false, line;
 }
     
-// Simple helper function
+// Normalizes all the seperators in a path to '/'
 normalize_path :: proc(path: string) -> string {
     // Normalize slashes
-    path, _ = strings.replace_all(path, "\\", "/");
+    was_allocated := false;
+    path, was_allocated = strings.replace_all(path, "\\", "/");
     
     // Add last slash
     if !strings.has_suffix(path, "/") {
+        old_path := path;
         path = strings.concatenate({ path, "/" });
+        
+        if was_allocated do delete(old_path);
+        was_allocated = true;
     }
     
-    return path;
+    return (was_allocated) ? path : strings.clone(path);
 }
 
 @private
 append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, files: ^[dynamic]File_Info, exts: ^[dynamic]string) -> Dir_Error {
     path = normalize_path(path);
+    defer delete(path);
+    
     dir, error := open_dir(path);
     
     defer if error == Dir_Error.None do close_dir(&dir);
@@ -361,11 +407,14 @@ append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, f
         
     info: File_Info;
     for get_next_file(dir, &info) {
+        filename := get_filename(&info);
+        ext      := get_ext(&info);
+        
+        // defer delete(filename);
+        // defer delete(ext);
+        
         if !only_files || (only_files && !info.is_directory) {
             // Don't add directories like . or ..
-            filename := get_filename(&info);
-            ext      := get_ext(&info);
-            
             valid_dir  := info.is_directory && filename[0] != '.';
             
             contains_ext := false;
@@ -382,10 +431,12 @@ append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, f
             
             if valid_dir || (!info.is_directory && valid_file) {
                 append(files, info);
+            } else {
+                delete_file_info(&info);
             }
         }
         
-        if search_subdirs && info.is_directory && get_filename(&info)[0] != '.' {
+        if search_subdirs && info.is_directory && filename[0] != '.' {
             error = append_all_files(info.path, only_files, search_subdirs, files, exts);
             
             if error != Dir_Error.None do return error;
