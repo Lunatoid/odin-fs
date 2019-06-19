@@ -355,6 +355,15 @@ getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
         // Find any line endings
         index := strings.index_any(str, "\r\n");
         
+        // @HACK: Sometimes the buffer will only read the \r of the \r\n
+        // and will cause it to read an extra empty line.
+        //
+        // A hacky workaround is if it ends in \r to just act like we didn't
+        // find any line endings at all
+        if len(str) > 0 && str[len(str) - 1] == '\r' {
+            index = -1;
+        }
+        
         if index == -1 {
             old_line := line;
             line = strings.concatenate({ line, str });
