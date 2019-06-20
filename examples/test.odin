@@ -13,7 +13,7 @@ main :: proc() {
     }
     
     files, error := fs.get_all_files(os.args[1], true, true, ".exe.dll.lib");
-    defer if error == fs.Dir_Error.None do delete(files);
+    defer if error == fs.Dir_Error.None do fs.delete_file_info_array(files);
     
     for f in files {
         fmt.printf(" %v\n", f.path);
