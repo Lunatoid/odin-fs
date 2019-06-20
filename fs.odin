@@ -1,4 +1,3 @@
-
 //
 // License:
 //  See end of the file for license information.
@@ -9,12 +8,18 @@
 //    Has options to scan recursively and to only include files with certain
 //    extensions.
 //
+//  delete_file_info_array(...)
+//    Frees a dynamic array of File_Info's
+//
 //  open_dir(...)
 //    Returns the Dir_Info and also opens a handle which allows iterating.
 //    Needs to be closed with close_dir(...)
 //
 //  close_dir(...)
-//    Closes the handle on the Dir_Info
+//    Closes the handle on the Dir_Info, optionally frees the Dir_Info.
+//
+//  delete_dir_info(...)
+//    Frees the Dir_Info.
 //
 //  get_dir_info(...)
 //    Opens the directory, gets the Dir_Info and then closes it again.
@@ -22,6 +27,9 @@
 //  get_next_file(...)
 //    Iterates over the next file in an open Dir_Info and fills out the
 //    File_Info pointer. Returns true while there are files to scan.
+//
+//  delete_file_info(...)
+//    Frees the File_Info.
 //
 //  get_filename(...)
 //    Returns the filename of a path.
@@ -51,7 +59,7 @@
 //       fmt.println(get_name(&file));
 //   }
 //   
-//   close_dir(&dir);
+//   close_dir(&dir, true);
 //   
 //  Getting all the .txt and .log files recursively:
 //   
@@ -69,7 +77,7 @@
 //       fmt.println(get_name(&file));
 //   }
 //   
-//   delete(files);
+//   delete_file_info_array(&files);
 //
 
 package fs;
@@ -249,24 +257,22 @@ delete_file_info_array :: proc(files: ^[dynamic]File_Info) {
     delete(files^);
 }
 
-// Returns the filename of a path
+// Returns the filename of a normalized path
 //   "output/data/file.txt" -> "file.txt"
 //   "output/data/folder/"  -> "folder"
 get_filename :: proc {get_filename_from_string, get_filename_from_info};
 
-// Returns the name of a path
+// Returns the name of a normalized path
 //   "output/data/file.txt" -> "file"
 //   "output/data/folder/"  -> "folder"
 get_name :: proc {get_name_from_string, get_name_from_info};
 
-// Returns the extension of a path
+// Returns the extension of a normalized path
 //   "output/data/file.txt" -> ".txt"
 //   "output/data/folder/"  -> ""
 get_ext :: proc {get_ext_from_string, get_ext_from_info};
 
 get_filename_from_string :: proc(path: string) -> string {
-    path = normalize_path(path);
-    
     // Get rid of the trailing slash
     if path[len(path) - 1] == '/' {
         path = path[:len(path) - 1];
@@ -344,8 +350,8 @@ import "core:fmt"
 
 // Gets the next line in a file
 //   file: a handle to a file
-//   out: a pointer to a string to put the line into
 //   buffer_size: the buffer of every read. A bigger buffer is faster but costs more memory.
+//   Returns false if the file has been read and also returns the actual line
 getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
     buf := make([]u8, buffer_size);
     defer if buf != nil do delete(buf);
@@ -399,7 +405,7 @@ getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
     return false, line;
 }
     
-// Normalizes all the seperators in a path to '/'
+// Normalizes all the seperators in a path to '/', returns newly allocated normalized path
 normalize_path :: proc(path: string) -> string {
     // Normalize slashes
     was_allocated := false;
