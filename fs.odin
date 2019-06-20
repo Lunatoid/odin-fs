@@ -112,16 +112,13 @@ Dir_Error :: enum {
     NotDir,
 }
 
+get_all_files :: proc { get_all_files_array, get_all_files_string };
+
 // Creates a dynamic array of all the files
 //   only_files: whether or not to exclude directories from the files
 //   recursive: whether or not to get all the files recursively
 //   exts: extension filter, "" for all files, ".txt.md" will only include .txt and .md files
-get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts := "") -> ([dynamic]File_Info, Dir_Error) {
-    path = normalize_path(path);
-    defer delete(path);
-    
-    files: [dynamic]File_Info;
-    
+get_all_files_string :: proc(path: string, only_files: bool, recursive: bool, exts := "") -> ([dynamic]File_Info, Dir_Error) {
     exts_arr: [dynamic]string;
     defer delete(exts_arr);
     
@@ -136,8 +133,20 @@ get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts := "
     }
     
     append(&exts_arr, exts);
+    return get_all_files_array(path, only_files, recursive, &exts_arr);
+}
+
+// Creates a dynamic array of all the files
+//   only_files: whether or not to exclude directories from the files
+//   recursive: whether or not to get all the files recursively
+//   exts: pointer to an array of the file extensions
+get_all_files_array :: proc(path: string, only_files: bool, recursive: bool, exts: ^[dynamic]string) -> ([dynamic]File_Info, Dir_Error) {
+    path = normalize_path(path);
+    defer delete(path);
     
-    error := append_all_files(path, only_files, recursive, &files, &exts_arr);
+    files: [dynamic]File_Info;
+    
+    error := append_all_files(path, only_files, recursive, &files, exts);
     
     if error != Dir_Error.None {
         delete(files);
