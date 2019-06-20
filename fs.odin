@@ -329,6 +329,8 @@ import "core:fmt"
 //   buffer_size: the buffer of every read. A bigger buffer is faster but costs more memory.
 //   Returns false if the file has been read and also returns the actual line
 getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
+    if buffer_size <= 0 do return false, strings.clone("");
+
     buf := make([]u8, buffer_size);
     defer if buf != nil do delete(buf);
     line: string;
@@ -349,8 +351,9 @@ getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
         // @HACK: Sometimes the buffer will only read the \r of the \r\n
         // and will cause it to read an extra empty line.
         //
-        // A hacky workaround is if it ends in \r to just act like we didn't
-        // find any line endings at all
+        // A hacky workaround is if it ends in \r and that is also the newline
+        // we found, just pretend we didn't find any line endings at all so
+        // it will read another buffer's worth and hopefully resolve the slicing.
         if len(str) > 0 && str[len(str) - 1] == '\r' && len(str) - 1 == index {
             index = -1;
         }
