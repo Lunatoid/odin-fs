@@ -120,41 +120,17 @@ Dir_Error :: enum {
     NotDir,
 }
 
-get_all_files :: proc { get_all_files_array, get_all_files_string };
-
-// Creates a dynamic array of all the files
-//   only_files: whether or not to exclude directories from the files
-//   recursive: whether or not to get all the files recursively
-//   exts: extension filter, "" for all files, ".txt.md" will only include .txt and .md files
-get_all_files_string :: proc(path: string, only_files: bool, recursive: bool, exts := "") -> ([dynamic]File_Info, Dir_Error) {
-    exts_arr: [dynamic]string;
-    defer delete(exts_arr);
-    
-    for true {
-        index := strings.index_any(exts, ".");
-    
-        if index == -1 do break;
-    
-        new_str := exts[:index];
-        append(&exts_arr, new_str);
-        exts = exts[index+1:];
-    }
-    
-    append(&exts_arr, exts);
-    return get_all_files_array(path, only_files, recursive, &exts_arr);
-}
-
 // Creates a dynamic array of all the files
 //   only_files: whether or not to exclude directories from the files
 //   recursive: whether or not to get all the files recursively
 //   exts: pointer to an array of the file extensions
-get_all_files_array :: proc(path: string, only_files: bool, recursive: bool, exts: ^[dynamic]string) -> ([dynamic]File_Info, Dir_Error) {
+get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts: ..string) -> ([dynamic]File_Info, Dir_Error) {
     path = normalize_path(path);
     defer delete(path);
     
     files: [dynamic]File_Info;
     
-    error := append_all_files(path, only_files, recursive, &files, exts);
+    error := append_all_files(path, only_files, recursive, &files, ..exts);
     
     if error != Dir_Error.None {
         delete(files);
@@ -200,7 +176,7 @@ open_dir :: proc(path: string) -> (dir: Dir_Info, error: Dir_Error) {
 // Closes the handle
 close_dir :: proc(dir: ^Dir_Info, delete_info := true) {
     if dir.handle != win32.INVALID_HANDLE {
-        assert(cast(bool) win32.find_close(dir.handle));
+        // assert(cast(bool) win32.find_close(dir.handle));
         dir.handle = win32.INVALID_HANDLE;
     }
     
@@ -226,8 +202,8 @@ get_dir_info :: proc(path: string) -> (Dir_Info, Dir_Error) {
 
 // Fills out the info with the data of the next file
 get_next_file :: proc(dir: Dir_Info, info: ^File_Info) -> bool {
-    // if dir.handle == win32.INVALID_HANDLE do return false;
-    assert(dir.handle != win32.INVALID_HANDLE);
+    if dir.handle == win32.INVALID_HANDLE do return false;
+    // assert(dir.handle != win32.INVALID_HANDLE);
     
     find_data: win32.Find_Data_A;
     more := cast(bool) win32.find_next_file_a(dir.handle, &find_data);
@@ -375,7 +351,7 @@ getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
         //
         // A hacky workaround is if it ends in \r to just act like we didn't
         // find any line endings at all
-        if len(str) > 0 && str[len(str) - 1] == '\r' {
+        if len(str) > 0 && str[len(str) - 1] == '\r' && len(str) - 1 == index {
             index = -1;
         }
         
@@ -424,7 +400,7 @@ normalize_path :: proc(path: string) -> string {
 }
 
 @private
-append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, files: ^[dynamic]File_Info, exts: ^[dynamic]string) -> Dir_Error {
+append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, files: ^[dynamic]File_Info, exts: ..string) -> Dir_Error {
     path = normalize_path(path);
     defer delete(path);
     
@@ -449,7 +425,7 @@ append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, f
             
             contains_ext := false;
             if len(ext) > 0 {
-                for e in exts^ {
+                for e in exts {
                     if (e == ext[1:]) {
                         contains_ext = true;
                         break;
@@ -467,7 +443,7 @@ append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, f
         }
         
         if search_subdirs && info.is_directory && filename[0] != '.' {
-            error = append_all_files(info.path, only_files, search_subdirs, files, exts);
+            error = append_all_files(info.path, only_files, search_subdirs, files, ..exts);
             
             if error != Dir_Error.None do return error;
         }
