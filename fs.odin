@@ -322,8 +322,6 @@ get_name_from_info :: proc(info: ^File_Info) -> string {
     return filename[:index];
 }
 
-import "core:fmt"
-
 // Gets the next line in a file
 //   file: a handle to a file
 //   buffer_size: the buffer of every read. A bigger buffer is faster but costs more memory.
