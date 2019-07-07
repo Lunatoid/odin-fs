@@ -49,7 +49,7 @@
 // Examples:
 //  Iterating over directories:
 //   
-//   dir, error := open_dir("C:/Directory/");
+//   dir, error := open_dir("path/to/dir/");
 //   
 //   // Error handling
 //   assert(error == Dir_Error.None);
@@ -65,10 +65,10 @@
 //   
 //   only_files := true;
 //   recursive  := true;
-//   files, error := get_all_files("C:/Directory",
+//   files, error := get_all_files("path/to/dir/",
 //                                 only_files,
 //                                 recursive,
-//                                 ".txt.log");
+//                                 ".txt", ".log");
 //
 //   // Error handling
 //   assert(error == Dir_Error.None);
