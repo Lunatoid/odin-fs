@@ -57,6 +57,7 @@
 //   file: File_Info;
 //   for get_next_file(dir, &file) {
 //       fmt.println(get_name(&file));
+//       delete_file_info(&file);
 //   }
 //   
 //   close_dir(&dir, true);
