@@ -49,7 +49,7 @@
 // Examples:
 //  Iterating over directories:
 //   
-//   dir, error := open_dir("C:/Directory/");
+//   dir, error := open_dir("path/to/dir/");
 //   
 //   // Error handling
 //   assert(error == Dir_Error.None);
@@ -57,6 +57,7 @@
 //   file: File_Info;
 //   for get_next_file(dir, &file) {
 //       fmt.println(get_name(&file));
+//       delete_file_info(&file);
 //   }
 //   
 //   close_dir(&dir, true);
@@ -65,10 +66,10 @@
 //   
 //   only_files := true;
 //   recursive  := true;
-//   files, error := get_all_files("C:/Directory",
+//   files, error := get_all_files("path/to/dir/",
 //                                 only_files,
 //                                 recursive,
-//                                 ".txt.log");
+//                                 ".txt", ".log");
 //
 //   // Error handling
 //   assert(error == Dir_Error.None);
