@@ -125,12 +125,12 @@ Dir_Error :: enum {
 //   recursive: whether or not to get all the files recursively
 //   exts: pointer to an array of the file extensions
 get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts: ..string) -> ([dynamic]File_Info, Dir_Error) {
-    path = normalize_path(path);
-    defer delete(path);
+    npath := normalize_path(path);
+    defer delete(npath);
     
     files: [dynamic]File_Info;
     
-    error := append_all_files(path, only_files, recursive, &files, ..exts);
+    error := append_all_files(npath, only_files, recursive, &files, ..exts);
     
     if error != Dir_Error.None {
         delete(files);
@@ -142,20 +142,20 @@ get_all_files :: proc(path: string, only_files: bool, recursive: bool, exts: ..s
 
 // Opens a directory and gets the directory info
 open_dir :: proc(path: string) -> (dir: Dir_Info, error: Dir_Error) {
-    path = normalize_path(path);
-    defer delete(path);
+    npath := normalize_path(path);
+    defer delete(npath);
     
-    dir.path = strings.clone(path);
+    dir.path = strings.clone(npath);
     
     // Add wildcard
-    if !strings.has_suffix(path, "*") {
-        old_path := path;
-        path = strings.concatenate({ path, "*" });
+    if !strings.has_suffix(npath, "*") {
+        old_path := npath;
+        npath = strings.concatenate({ npath, "*" });
         delete(old_path);
     }
     
     find_data: win32.Find_Data_A;
-    cpath := strings.clone_to_cstring(path);
+    cpath := strings.clone_to_cstring(npath);
     dir.handle = win32.find_first_file_a(cpath, &find_data);
     
     if dir.handle == win32.INVALID_HANDLE {
@@ -249,18 +249,20 @@ get_name :: proc {get_name_from_string, get_name_from_info};
 get_ext :: proc {get_ext_from_string, get_ext_from_info};
 
 get_filename_from_string :: proc(path: string) -> string {
+    filename := path;
+
     // Get rid of the trailing slash
-    if path[len(path) - 1] == '/' {
-        path = path[:len(path) - 1];
+    if filename[len(filename) - 1] == '/' {
+        filename = filename[:len(filename) - 1];
     }
     
-    index := strings.last_index_any(path, "/");
+    index := strings.last_index_any(filename, "/");
     
     if (index == -1) {
-        return path[:];
+        return filename[:];
     }
     
-    return path[index + 1:];
+    return filename[index + 1:];
 }
 
 get_filename_from_info :: proc(info: ^File_Info) -> string {
@@ -385,27 +387,26 @@ getline :: proc(file: os.Handle, buffer_size: int = 32) -> (bool, string) {
 // Normalizes all the seperators in a path to '/', returns newly allocated normalized path
 normalize_path :: proc(path: string) -> string {
     // Normalize slashes
-    was_allocated := false;
-    path, was_allocated = strings.replace_all(path, "\\", "/");
+    npath, was_allocated := strings.replace_all(path, "\\", "/");
     
     // Add last slash
-    if !strings.has_suffix(path, "/") {
-        old_path := path;
-        path = strings.concatenate({ path, "/" });
+    if !strings.has_suffix(npath, "/") {
+        old_path := npath;
+        npath = strings.concatenate({ npath, "/" });
         
         if was_allocated do delete(old_path);
         was_allocated = true;
     }
     
-    return (was_allocated) ? path : strings.clone(path);
+    return (was_allocated) ? npath : strings.clone(npath);
 }
 
 @private
 append_all_files :: proc(path: string, only_files: bool, search_subdirs: bool, files: ^[dynamic]File_Info, exts: ..string) -> Dir_Error {
-    path = normalize_path(path);
-    defer delete(path);
+    npath := normalize_path(path);
+    defer delete(npath);
     
-    dir, error := open_dir(path);
+    dir, error := open_dir(npath);
     
     defer if error == Dir_Error.None do close_dir(&dir);
     

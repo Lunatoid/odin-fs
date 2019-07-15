@@ -8,7 +8,7 @@ import "fs"
 main :: proc() {
     // Recursively get all the .exe, .dll and .lib files and then print them out
     if len(os.args) <= 1 {
-        fmt.printf("Usage: %v <directory>", os.args[0]);
+        fmt.printf("Usage: %v <directory>", os.args[1]);
         return;
     }
     
